@@ -40,7 +40,7 @@ class PatchedDense(keras.layers.Dense):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    from_config(cls, config):
+    def from_config(cls, config):
         config.pop("quantization_config", None)
         return super().from_config(config)
 
