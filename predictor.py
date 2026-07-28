@@ -24,6 +24,14 @@ import os
 # ----------------------------------------------------------
 os.environ["KERAS_BACKEND"] = "tensorflow"
 
+_original_dense_init = keras.layers.Dense.__init__
+
+def _patched_dense_init(self, *args, **kwargs):
+    kwargs.pop("quantization_config", None)
+    _original_dense_init(self, *args, **kwargs)
+
+keras.layers.Dense.__init__ = _patched_dense_init
+
 
 MODEL_DIR = "TNN_MODEL"
 N_FORWARD_MODELS = 8
@@ -31,18 +39,6 @@ N_INVERSE_MODELS = 8
 
 TRAINING_DATA_FILE = "DoE_400_LHS_RC_Blast_StrengthStep6.xlsx"  # <-- same file used for training
 FEASIBILITY_WARNING_THRESHOLD = 15.0             # % gap that triggers a warning
-
-# ----------------------------------------------------------
-# Load everything once at import time
-# ----------------------------------------------------------
-class PatchedDense(keras.layers.Dense):
-    def __init__(self, *args, quantization_config=None, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    @classmethod
-    def from_config(cls, config):
-        config.pop("quantization_config", None)
-        return super().from_config(config)
 
 # ----------------------------------------------------------
 # Load everything once at import time
@@ -55,24 +51,35 @@ geometry_cols = joblib.load(os.path.join(MODEL_DIR, "geometry_cols.joblib"))
 performance_cols = joblib.load(os.path.join(MODEL_DIR, "performance_cols.joblib"))
 
 forward_models = [
-    keras.models.load_model(
-        os.path.join(MODEL_DIR, f"forward_model_seed{i}.keras"),
-        compile=False,
-        custom_objects={"Dense": PatchedDense}
-    )
+    keras.models.load_model(os.path.join(MODEL_DIR, f"forward_model_seed{i}.keras"), compile=False)
     for i in range(N_FORWARD_MODELS)
 ]
-
 inverse_models = [
-    keras.models.load_model(
-        os.path.join(MODEL_DIR, f"inverse_model_seed{i}.keras"),
-        compile=False,
-        custom_objects={"Dense": PatchedDense}
-    )
+    keras.models.load_model(os.path.join(MODEL_DIR, f"inverse_model_seed{i}.keras"), compile=False)
     for i in range(N_INVERSE_MODELS)
 ]
 
+print(f"Loaded {len(forward_models)} forward models and {len(inverse_models)} inverse models.")
+print(f"Expected performance columns in uploaded file: {performance_cols}")
 
+# ----------------------------------------------------------
+# Load everything once at import time
+# ----------------------------------------------------------
+print("Loading TNN ensemble models... (this happens once at startup)")
+
+g_scaler = joblib.load(os.path.join(MODEL_DIR, "g_scaler.joblib"))
+p_scaler = joblib.load(os.path.join(MODEL_DIR, "p_scaler.joblib"))
+geometry_cols = joblib.load(os.path.join(MODEL_DIR, "geometry_cols.joblib"))
+performance_cols = joblib.load(os.path.join(MODEL_DIR, "performance_cols.joblib"))
+
+forward_models = [
+    keras.models.load_model(os.path.join(MODEL_DIR, f"forward_model_seed{i}.keras"), compile=False)
+    for i in range(N_FORWARD_MODELS)
+]
+inverse_models = [
+    keras.models.load_model(os.path.join(MODEL_DIR, f"inverse_model_seed{i}.keras"), compile=False)
+    for i in range(N_INVERSE_MODELS)
+]
 
 print(f"Loaded {len(forward_models)} forward models and {len(inverse_models)} inverse models.")
 print(f"Expected performance columns in uploaded file: {performance_cols}")
