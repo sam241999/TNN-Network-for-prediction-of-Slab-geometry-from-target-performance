@@ -22,7 +22,7 @@ import os
 # ----------------------------------------------------------
 # CONFIG - EDIT THESE to match your training setup
 # ----------------------------------------------------------
-MODEL_DIR = "tnn_model"
+MODEL_DIR = "TNN_MODEL"
 N_FORWARD_MODELS = 8
 N_INVERSE_MODELS = 8
 
