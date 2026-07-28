@@ -22,8 +22,7 @@ import os
 # ----------------------------------------------------------
 # CONFIG - EDIT THESE to match your training setup
 # ----------------------------------------------------------
-
- os.environ["KERAS_BACKEND"] = "tensorflow"
+os.environ["KERAS_BACKEND"] = "tensorflow"
 
 
 MODEL_DIR = "TNN_MODEL"
