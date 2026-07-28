@@ -6,4 +6,4 @@ scikit-learn
 joblib
 openpyxl
 gunicorn
-tf-keras
+keras
