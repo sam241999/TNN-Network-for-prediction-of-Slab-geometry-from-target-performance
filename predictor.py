@@ -15,7 +15,7 @@ silently returning a compromise answer that looks like a model error.
 
 import numpy as np
 import pandas as pd
-import tensorflow as tf
+import keras
 import joblib
 import os
 
@@ -40,11 +40,11 @@ geometry_cols = joblib.load(os.path.join(MODEL_DIR, "geometry_cols.joblib"))
 performance_cols = joblib.load(os.path.join(MODEL_DIR, "performance_cols.joblib"))
 
 forward_models = [
-    tf.keras.models.load_model(os.path.join(MODEL_DIR, f"forward_model_seed{i}.keras"))
+    keras.models.load_model(os.path.join(MODEL_DIR, f"forward_model_seed{i}.keras"), compile=False)
     for i in range(N_FORWARD_MODELS)
 ]
 inverse_models = [
-    tf.keras.models.load_model(os.path.join(MODEL_DIR, f"inverse_model_seed{i}.keras"))
+    keras.models.load_model(os.path.join(MODEL_DIR, f"inverse_model_seed{i}.keras"), compile=False)
     for i in range(N_INVERSE_MODELS)
 ]
 
