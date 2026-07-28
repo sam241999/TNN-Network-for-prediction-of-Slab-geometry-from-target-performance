@@ -120,13 +120,10 @@ def check_feasibility(target_row, threshold=FEASIBILITY_WARNING_THRESHOLD):
 def predict_geometry_batch(target_df: pd.DataFrame) -> pd.DataFrame:
     """
     target_df: DataFrame with columns matching performance_cols
-    Returns: DataFrame with original targets + predicted geometry +
-             achieved performance (via forward ensemble) + differences
-             + a Feasibility_Warning column for any unrealistic requests.
-    Raises ValueError if required columns are missing.
     """
-    # Clear residual session memory to stay safely within Render RAM limits
+    # 1. ADD THIS AT THE TOP OF THE FUNCTION
     keras.backend.clear_session()
+    gc.collect()
 
     missing_cols = [c for c in performance_cols if c not in target_df.columns]
     if missing_cols:
@@ -141,13 +138,13 @@ def predict_geometry_batch(target_df: pd.DataFrame) -> pd.DataFrame:
 
     targets_s = p_scaler.transform(targets_transformed)
 
-    # Inverse ensemble -> predicted geometry (with mini-batching for speed/RAM)
-    geom_preds_s = [im.predict(targets_s, batch_size=32, verbose=0) for im in inverse_models]
+    # 2. CHANGE THIS LINE (Added batch_size=16)
+    geom_preds_s = [im.predict(targets_s, batch_size=16, verbose=0) for im in inverse_models]
     geometry_s = np.mean(geom_preds_s, axis=0)
     geometry = g_scaler.inverse_transform(geometry_s)
 
-    # Forward ensemble -> achieved performance check (with mini-batching for speed/RAM)
-    achieved_preds_s = [fm.predict(geometry_s, batch_size=32, verbose=0) for fm in forward_models]
+    # 3. CHANGE THIS LINE (Added batch_size=16)
+    achieved_preds_s = [fm.predict(geometry_s, batch_size=16, verbose=0) for fm in forward_models]
     achieved_s = np.mean(achieved_preds_s, axis=0)
     achieved = p_scaler.inverse_transform(achieved_s)
     achieved[:, 1] = np.expm1(achieved[:, 1])
@@ -167,5 +164,8 @@ def predict_geometry_batch(target_df: pd.DataFrame) -> pd.DataFrame:
         max_gaps.append(round(gap, 1))
     result["Feasibility_Warning"] = warnings
     result["Max_Gap_From_Nearest_Real_Design_%"] = max_gaps
+
+    # 4. ADD THIS BEFORE THE RETURN STATEMENT
+    gc.collect()
 
     return result
