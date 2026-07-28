@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Slab Geometry Predictor</title>
+  <style>
+    :root {
+      --ink: #1c1c1c;
+      --paper: #faf9f7;
+      --line: #d8d5cf;
+      --accent: #2f4858;
+      --accent-soft: #e7edf0;
+      --warn: #9a3b2f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Georgia", "Iowan Old Style", serif;
+      display: flex;
+      justify-content: center;
+      padding: 64px 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 560px;
+    }
+    .eyebrow {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 30px;
+      line-height: 1.2;
+      margin: 0 0 12px 0;
+      font-weight: 500;
+    }
+    p.lede {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.55;
+      color: #4a4a4a;
+      margin: 0 0 36px 0;
+    }
+    .flash {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      font-size: 14px;
+      background: #fbeceA;
+      border: 1px solid var(--warn);
+      color: var(--warn);
+      padding: 12px 16px;
+      border-radius: 3px;
+      margin-bottom: 24px;
+    }
+    form {
+      border-top: 1px solid var(--line);
+      padding-top: 28px;
+    }
+    label {
+      display: block;
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      color: var(--ink);
+      margin-bottom: 10px;
+    }
+    .dropzone {
+      border: 1px dashed var(--line);
+      border-radius: 4px;
+      background: #fff;
+      padding: 28px;
+      text-align: center;
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      color: #6b6b6b;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    input[type="file"] {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      font-size: 14px;
+    }
+    .cols {
+      font-family: "Menlo", "Consolas", monospace;
+      font-size: 12.5px;
+      background: var(--accent-soft);
+      border-radius: 3px;
+      padding: 14px 16px;
+      margin-bottom: 28px;
+      color: var(--accent);
+      line-height: 1.7;
+    }
+    button {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      font-size: 14px;
+      letter-spacing: 0.03em;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 13px 26px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.92; }
+    .note {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      font-size: 12.5px;
+      color: #8a8a8a;
+      margin-top: 22px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="eyebrow">Tandem Neural Network</div>
+    <h1>Predict slab geometry from target performance</h1>
+    <p class="lede">
+      Upload a file listing the Force, Displacement, and Area you want a slab
+      to achieve. You'll get back a predicted geometry for each row, along
+      with a check of what performance that geometry actually achieves —
+      and a flag if the target isn't physically realistic.
+    </p>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="flash">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form action="/predict" method="post" enctype="multipart/form-data">
+      <label for="file">Target performance file (.csv or .xlsx)</label>
+      <div class="dropzone">
+        <input type="file" id="file" name="file" accept=".csv,.xlsx,.xls" required>
+      </div>
+
+      <div class="cols">
+        Required columns:<br>
+        {% for col in performance_cols %}{{ col }}{% if not loop.last %}, {% endif %}{% endfor %}
+      </div>
+
+      <button type="submit">Run and download geometry</button>
+    </form>
+
+    <p class="note">
+      Output is an Excel file with the predicted geometry for each row,
+      the performance that geometry actually achieves, the difference from
+      your target, and a feasibility warning where the target isn't
+      well-supported by real design data.
+    </p>
+  </div>
+</body>
+</html>
