@@ -5,3 +5,4 @@ tensorflow==2.16.2
 scikit-learn
 joblib
 openpyxl
+gunicorn
