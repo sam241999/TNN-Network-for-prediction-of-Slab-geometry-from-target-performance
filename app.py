@@ -71,13 +71,16 @@ def predict():
         return redirect(url_for("index"))
 
     try:
-        # Read the uploaded file directly into pandas (no need to save
-        # the raw upload permanently, though you could if you wanted a log)
+        # Read the uploaded file directly into pandas
         if file.filename.lower().endswith(".csv"):
             target_df = pd.read_csv(file)
         else:
             target_df = pd.read_excel(file)
 
+        # Strip any accidental whitespace around uploaded column names
+        target_df.columns = target_df.columns.str.strip()
+
+        # Run inference through the ensemble
         results_df = predict_geometry_batch(target_df)
 
         # Write result to an in-memory Excel file
@@ -97,7 +100,7 @@ def predict():
         )
 
     except ValueError as e:
-        # e.g. missing required columns - show a clear message, not a stack trace
+        # Expected model validation errors (e.g. missing required columns)
         flash(str(e))
         return redirect(url_for("index"))
 
@@ -108,4 +111,4 @@ def predict():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
