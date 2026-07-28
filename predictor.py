@@ -37,7 +37,7 @@ MODEL_DIR = "TNN_MODEL"
 N_FORWARD_MODELS = 8
 N_INVERSE_MODELS = 8
 
-TRAINING_DATA_FILE = "DoE_400_LHS_RC_Blast_StrengthStep6.xlsx"  # <-- same file used for training
+TRAINING_DATA_FILE = "DoE_400_LHS_RC_Blast_StrengthStep6.csv"  # <-- same file used for training
 FEASIBILITY_WARNING_THRESHOLD = 15.0             # % gap that triggers a warning
 
 # ----------------------------------------------------------
