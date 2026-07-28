@@ -5,10 +5,9 @@ Flask web interface for the Tandem Neural Network.
 
 Workflow:
   1. User uploads a .csv or .xlsx file with target performance
-     columns (Peak_Force_N, Peak_Displacement_mm, Total_Area, etc.
-     - must match performance_cols from training).
+     columns (Peak_Force_N, Peak_Displacement_mm, Total_Area, etc.).
   2. App runs it through the trained inverse+forward ensemble.
-  3. App returns a downloadable Excel file with predicted geometry
+  3. App returns a downloadable CSV file with predicted geometry
      and achieved-performance verification for every row.
 
 RUN WITH:
@@ -23,7 +22,7 @@ import traceback
 from datetime import datetime
 
 import pandas as pd
-from flask import Flask, request, render_template, send_file, flash, redirect, url_for
+from flask import Flask, request, render_template, send_file, flash, redirect, url_for, Response
 
 from predictor import predict_geometry_batch, performance_cols
 
@@ -33,13 +32,7 @@ from predictor import predict_geometry_batch, performance_cols
 app = Flask(__name__, template_folder='.')
 app.secret_key = "change-this-to-something-random"  # needed for flash messages
 
-UPLOAD_FOLDER = "uploads"
-OUTPUT_FOLDER = "outputs"
 ALLOWED_EXTENSIONS = {"csv", "xlsx", "xls"}
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -71,6 +64,8 @@ def predict():
         return redirect(url_for("index"))
 
     try:
+        print("--> File received, parsing data...", flush=True)
+        
         # Read the uploaded file directly into pandas
         if file.filename.lower().endswith(".csv"):
             target_df = pd.read_csv(file)
@@ -80,31 +75,29 @@ def predict():
         # Strip any accidental whitespace around uploaded column names
         target_df.columns = target_df.columns.str.strip()
 
-        # Run inference through the ensemble
+        print("--> Running predictions through TNN ensemble...", flush=True)
         results_df = predict_geometry_batch(target_df)
 
-        # Write result to an in-memory Excel file
-        output_buffer = io.BytesIO()
-        with pd.ExcelWriter(output_buffer, engine="openpyxl") as writer:
-            results_df.to_excel(writer, index=False, sheet_name="Predicted_Geometry")
-        output_buffer.seek(0)
-
+        print("--> Generating output response...", flush=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        download_name = f"Predicted_Geometry_{timestamp}.xlsx"
+        download_name = f"Predicted_Geometry_{timestamp}.csv"
 
-        return send_file(
-            output_buffer,
-            as_attachment=True,
-            download_name=download_name,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        # Convert result directly to CSV text stream (Fast & Low RAM)
+        csv_data = results_df.to_csv(index=False)
+
+        return Response(
+            csv_data,
+            mimetype="text/csv",
+            headers={"Content-disposition": f"attachment; filename={download_name}"}
         )
 
     except ValueError as e:
-        # Expected model validation errors (e.g. missing required columns)
+        print(f"Validation Error: {e}", flush=True)
         flash(str(e))
         return redirect(url_for("index"))
 
     except Exception as e:
+        print("!!! UNCAUGHT PREDICTION ERROR !!!", flush=True)
         traceback.print_exc()
         flash(f"Something went wrong while running the model: {e}")
         return redirect(url_for("index"))
