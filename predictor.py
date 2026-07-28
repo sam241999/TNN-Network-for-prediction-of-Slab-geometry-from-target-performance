@@ -43,22 +43,28 @@ p_scaler = joblib.load(os.path.join(MODEL_DIR, "p_scaler.joblib"))
 geometry_cols = joblib.load(os.path.join(MODEL_DIR, "geometry_cols.joblib"))
 performance_cols = joblib.load(os.path.join(MODEL_DIR, "performance_cols.joblib"))
 
-def safe_load_model(filepath):
-    try:
-        return keras.models.load_model(filepath, compile=False)
-    except Exception:
-        # Fallback for Keras 3 config deserialization quirks
-        import zipfile
-        import json
-        return keras.models.load_model(filepath, compile=False, safe_mode=False)
+
+
+@keras.utils.register_keras_serializable(package="Custom")
+class PatchedDense(keras.layers.Dense):
+    def __init__(self, *args, quantization_config=None, **kwargs):
+        super().__init__(*args, **kwargs)
 
 forward_models = [
-    safe_load_model(os.path.join(MODEL_DIR, f"forward_model_seed{i}.keras"))
+    keras.models.load_model(
+        os.path.join(MODEL_DIR, f"forward_model_seed{i}.keras"),
+        compile=False,
+        custom_objects={"Dense": PatchedDense}
+    )
     for i in range(N_FORWARD_MODELS)
 ]
 
 inverse_models = [
-    safe_load_model(os.path.join(MODEL_DIR, f"inverse_model_seed{i}.keras"))
+    keras.models.load_model(
+        os.path.join(MODEL_DIR, f"inverse_model_seed{i}.keras"),
+        compile=False,
+        custom_objects={"Dense": PatchedDense}
+    )
     for i in range(N_INVERSE_MODELS)
 ]
 
