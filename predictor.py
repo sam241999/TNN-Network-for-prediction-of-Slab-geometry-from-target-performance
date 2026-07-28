@@ -75,16 +75,31 @@ _P_range = _P_real.max(axis=0) - _P_real.min(axis=0)
 _P_real_norm = _P_real / _P_range
 
 
+# Global variable for cached training data
+_train_data_cache = None
+
+def get_training_data():
+    global _train_data_cache
+    if _train_data_cache is None:
+        if TRAINING_DATA_FILE.endswith(".csv"):
+            df = pd.read_csv(TRAINING_DATA_FILE)
+        else:
+            df = pd.read_excel(TRAINING_DATA_FILE)
+        
+        P_real = df[performance_cols].values.astype(float)
+        P_range = P_real.max(axis=0) - P_real.min(axis=0)
+        P_real_norm = P_real / P_range
+        _train_data_cache = (P_real, P_range, P_real_norm)
+    return _train_data_cache
+
+
 def check_feasibility(target_row, threshold=FEASIBILITY_WARNING_THRESHOLD):
-    """
-    Compares one requested target (array matching performance_cols order)
-    against the closest REAL training sample. Returns (warning_message,
-    max_gap_pct). warning_message is "" if the target looks achievable.
-    """
-    target_norm = np.array(target_row) / _P_range
+    P_real, P_range, P_real_norm = get_training_data()
+    
+    target_norm = np.array(target_row) / P_range
     distances = np.sqrt(((_P_real_norm - target_norm) ** 2).sum(axis=1))
     nearest_idx = np.argmin(distances)
-    nearest = _P_real[nearest_idx]
+    nearest = P_real[nearest_idx]
 
     gaps = 100 * np.abs(nearest - np.array(target_row)) / np.array(target_row)
     max_gap = gaps.max()
