@@ -13,11 +13,11 @@ silently returning a compromise answer that looks like a model error.
 ==========================================================
 """
 
+import os
+import joblib
 import numpy as np
 import pandas as pd
 import keras
-import joblib
-import os
 
 # ----------------------------------------------------------
 # CONFIG - EDIT THESE to match your training setup
@@ -39,28 +39,6 @@ N_INVERSE_MODELS = 8
 
 TRAINING_DATA_FILE = "DoE_400_LHS_RC_Blast_StrengthStep6.xlsx"  # <-- same file used for training
 FEASIBILITY_WARNING_THRESHOLD = 15.0             # % gap that triggers a warning
-
-# ----------------------------------------------------------
-# Load everything once at import time
-# ----------------------------------------------------------
-print("Loading TNN ensemble models... (this happens once at startup)")
-
-g_scaler = joblib.load(os.path.join(MODEL_DIR, "g_scaler.joblib"))
-p_scaler = joblib.load(os.path.join(MODEL_DIR, "p_scaler.joblib"))
-geometry_cols = joblib.load(os.path.join(MODEL_DIR, "geometry_cols.joblib"))
-performance_cols = joblib.load(os.path.join(MODEL_DIR, "performance_cols.joblib"))
-
-forward_models = [
-    keras.models.load_model(os.path.join(MODEL_DIR, f"forward_model_seed{i}.keras"), compile=False)
-    for i in range(N_FORWARD_MODELS)
-]
-inverse_models = [
-    keras.models.load_model(os.path.join(MODEL_DIR, f"inverse_model_seed{i}.keras"), compile=False)
-    for i in range(N_INVERSE_MODELS)
-]
-
-print(f"Loaded {len(forward_models)} forward models and {len(inverse_models)} inverse models.")
-print(f"Expected performance columns in uploaded file: {performance_cols}")
 
 # ----------------------------------------------------------
 # Load everything once at import time
@@ -129,6 +107,9 @@ def predict_geometry_batch(target_df: pd.DataFrame) -> pd.DataFrame:
              + a Feasibility_Warning column for any unrealistic requests.
     Raises ValueError if required columns are missing.
     """
+    # Clear residual session memory to stay safely within Render RAM limits
+    keras.backend.clear_session()
+
     missing_cols = [c for c in performance_cols if c not in target_df.columns]
     if missing_cols:
         raise ValueError(
@@ -142,13 +123,13 @@ def predict_geometry_batch(target_df: pd.DataFrame) -> pd.DataFrame:
 
     targets_s = p_scaler.transform(targets_transformed)
 
-    # Inverse ensemble -> predicted geometry
-    geom_preds_s = [im.predict(targets_s, verbose=0) for im in inverse_models]
+    # Inverse ensemble -> predicted geometry (with mini-batching for speed/RAM)
+    geom_preds_s = [im.predict(targets_s, batch_size=32, verbose=0) for im in inverse_models]
     geometry_s = np.mean(geom_preds_s, axis=0)
     geometry = g_scaler.inverse_transform(geometry_s)
 
-    # Forward ensemble -> achieved performance check
-    achieved_preds_s = [fm.predict(geometry_s, verbose=0) for fm in forward_models]
+    # Forward ensemble -> achieved performance check (with mini-batching for speed/RAM)
+    achieved_preds_s = [fm.predict(geometry_s, batch_size=32, verbose=0) for fm in forward_models]
     achieved_s = np.mean(achieved_preds_s, axis=0)
     achieved = p_scaler.inverse_transform(achieved_s)
     achieved[:, 1] = np.expm1(achieved[:, 1])
