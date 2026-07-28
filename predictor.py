@@ -35,19 +35,24 @@ FEASIBILITY_WARNING_THRESHOLD = 15.0             # % gap that triggers a warning
 # ----------------------------------------------------------
 # Load everything once at import time
 # ----------------------------------------------------------
+class PatchedDense(keras.layers.Dense):
+    def __init__(self, *args, quantization_config=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @classmethod
+    from_config(cls, config):
+        config.pop("quantization_config", None)
+        return super().from_config(config)
+
+# ----------------------------------------------------------
+# Load everything once at import time
+# ----------------------------------------------------------
 print("Loading TNN ensemble models... (this happens once at startup)")
 
 g_scaler = joblib.load(os.path.join(MODEL_DIR, "g_scaler.joblib"))
 p_scaler = joblib.load(os.path.join(MODEL_DIR, "p_scaler.joblib"))
 geometry_cols = joblib.load(os.path.join(MODEL_DIR, "geometry_cols.joblib"))
 performance_cols = joblib.load(os.path.join(MODEL_DIR, "performance_cols.joblib"))
-
-
-
-@keras.utils.register_keras_serializable(package="Custom")
-class PatchedDense(keras.layers.Dense):
-    def __init__(self, *args, quantization_config=None, **kwargs):
-        super().__init__(*args, **kwargs)
 
 forward_models = [
     keras.models.load_model(
@@ -66,6 +71,8 @@ inverse_models = [
     )
     for i in range(N_INVERSE_MODELS)
 ]
+
+
 
 print(f"Loaded {len(forward_models)} forward models and {len(inverse_models)} inverse models.")
 print(f"Expected performance columns in uploaded file: {performance_cols}")
