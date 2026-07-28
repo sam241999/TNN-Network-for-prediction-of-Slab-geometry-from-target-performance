@@ -23,6 +23,9 @@ import keras
 # CONFIG - EDIT THESE to match your training setup
 # ----------------------------------------------------------
 os.environ["KERAS_BACKEND"] = "tensorflow"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["TF_NUM_INTRAOP_THREADS"] = "1"
+os.environ["TF_NUM_INTEROP_THREADS"] = "1"
 
 _original_dense_init = keras.layers.Dense.__init__
 
