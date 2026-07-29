@@ -1,115 +1,111 @@
 """
 app.py
 ==========================================================
-Flask web interface for the Tandem Neural Network.
+Streamlit web interface for the Tandem Neural Network.
 
 Workflow:
   1. User uploads a .csv or .xlsx file with target performance
      columns (Peak_Force_N, Peak_Displacement_mm, Total_Area, etc.).
   2. App runs it through the trained inverse+forward ensemble.
-  3. App returns a downloadable CSV file with predicted geometry
+  3. App provides a downloadable CSV file with predicted geometry
      and achieved-performance verification for every row.
 
-RUN WITH:
-    python app.py
-Then open http://127.0.0.1:5000 in a browser.
+RUN LOCALLY:
+    streamlit run app.py
 ==========================================================
 """
 
 import os
 import io
 import traceback
-from datetime import datetime
 import gc
-
+from datetime import datetime
 
 import pandas as pd
-from flask import Flask, request, render_template, send_file, flash, redirect, url_for, Response
+import streamlit as st
 
 from predictor import predict_geometry_batch, performance_cols
 
 # ----------------------------------------------------------
-# App setup
+# Page Configuration
 # ----------------------------------------------------------
-try:
-    # Model inference logic
-    output = model.predict(data)
-    gc.collect()  # <--- This was causing the error because 'import gc' was missing
-except Exception as e:
-  
-app = Flask(__name__, template_folder='.')
-app.secret_key = "change-this-to-something-random"  # needed for flash messages
-
-ALLOWED_EXTENSIONS = {"csv", "xlsx", "xls"}
-
-def allowed_file(filename):
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
-
+st.set_page_config(
+    page_title="Slab Geometry Predictor",
+    page_icon="🏗️",
+    layout="centered"
+)
 
 # ----------------------------------------------------------
-# Routes
+# Header & UI Info
 # ----------------------------------------------------------
+st.title("Predict slab geometry from target performance")
 
-@app.route("/", methods=["GET"])
-def index():
-    return render_template("index.html", performance_cols=performance_cols)
+st.markdown(
+    """
+    Upload a file listing the Force, Displacement, and Area you want a slab to achieve. 
+    You'll get back a predicted geometry for each row, along with a check of what 
+    performance that geometry actually achieves — and a flag if the target isn't 
+    physically realistic.
+    """
+)
 
+# Display required columns info
+if performance_cols:
+    st.info(f"**Required columns:**\n`{', '.join(performance_cols)}`")
 
-@app.route("/predict", methods=["POST"])
-def predict():
-    if "file" not in request.files:
-        flash("No file selected.")
-        return redirect(url_for("index"))
+# ----------------------------------------------------------
+# File Upload & Prediction Workflow
+# ----------------------------------------------------------
+uploaded_file = st.file_uploader(
+    "Target performance file (.csv or .xlsx)", 
+    type=["csv", "xlsx", "xls"]
+)
 
-    file = request.files["file"]
+if uploaded_file is not None:
+    if st.button("Run Prediction", type="primary"):
+        with st.spinner("Processing data and running TNN ensemble..."):
+            try:
+                # Read uploaded file into pandas DataFrame
+                filename = uploaded_file.name.lower()
+                if filename.endswith(".csv"):
+                    target_df = pd.read_csv(uploaded_file)
+                else:
+                    target_df = pd.read_excel(uploaded_file)
 
-    if file.filename == "":
-        flash("No file selected.")
-        return redirect(url_for("index"))
+                # Strip whitespace from column names
+                target_df.columns = target_df.columns.str.strip()
 
-    if not allowed_file(file.filename):
-        flash("Invalid file type. Please upload a .csv or .xlsx file.")
-        return redirect(url_for("index"))
+                # Run predictions through your model ensemble
+                results_df = predict_geometry_batch(target_df)
 
-    try:
-        print("--> File received, parsing data...", flush=True)
-        
-        # Read the uploaded file directly into pandas
-        if file.filename.lower().endswith(".csv"):
-            target_df = pd.read_csv(file)
-        else:
-            target_df = pd.read_excel(file)
+                # Free up memory after prediction
+                gc.collect()
 
-        # Strip any accidental whitespace around uploaded column names
-        target_df.columns = target_df.columns.str.strip()
+                # Generate dynamic filename
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                download_name = f"Predicted_Geometry_{timestamp}.csv"
 
-        print("--> Running predictions through TNN ensemble...", flush=True)
-        results_df = predict_geometry_batch(target_df)
+                # Convert DataFrame to CSV for download
+                csv_data = results_df.to_csv(index=False).encode('utf-8')
 
-        print("--> Generating output response...", flush=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        download_name = f"Predicted_Geometry_{timestamp}.csv"
+                st.success("Predictions generated successfully!")
 
-        # Convert result directly to CSV text stream (Fast & Low RAM)
-        csv_data = results_df.to_csv(index=False)
+                # Preview the results in the browser
+                st.subheader("Preview Results")
+                st.dataframe(results_df.head())
 
-        return Response(
-            csv_data,
-            mimetype="text/csv",
-            headers={"Content-disposition": f"attachment; filename={download_name}"}
-        )
+                # Download button for the output file
+                st.download_button(
+                    label="📥 Download Predicted Geometry CSV",
+                    data=csv_data,
+                    file_name=download_name,
+                    mime="text/csv"
+                )
 
-    except ValueError as e:
-        print(f"Validation Error: {e}", flush=True)
-        flash(str(e))
-        return redirect(url_for("index"))
+            except ValueError as e:
+                st.error(f"Validation Error: {e}")
 
-    except Exception as e:
-        print("!!! UNCAUGHT PREDICTION ERROR !!!", flush=True)
-        traceback.print_exc()
-        flash(f"Something went wrong while running the model: {e}")
-        return redirect(url_for("index"))
-
-
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+            except Exception as e:
+                st.error(f"Something went wrong while running the model: {e}")
+                with st.expander("Show detailed error logs"):
+                    st.code(traceback.format_exc())
