@@ -20,6 +20,8 @@ import os
 import io
 import traceback
 from datetime import datetime
+import gc
+
 
 import pandas as pd
 from flask import Flask, request, render_template, send_file, flash, redirect, url_for, Response
@@ -29,6 +31,12 @@ from predictor import predict_geometry_batch, performance_cols
 # ----------------------------------------------------------
 # App setup
 # ----------------------------------------------------------
+try:
+    # Model inference logic
+    output = model.predict(data)
+    gc.collect()  # <--- This was causing the error because 'import gc' was missing
+except Exception as e:
+  
 app = Flask(__name__, template_folder='.')
 app.secret_key = "change-this-to-something-random"  # needed for flash messages
 
